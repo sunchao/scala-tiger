@@ -1,0 +1,11 @@
+let
+  var M := 4
+  type intArray = array of int
+  var arr := intArray [ M ] of 0
+  function try(c:int) =
+  if c=M then ()
+  else for r := 0 to M-1
+        do if arr[r]=0 then (arr[r]:=1; print("OO\n"))
+in
+  try(0)
+end

@@ -6,6 +6,13 @@ class Lexer extends RegexParsers with ImplicitConversions {
 
   private def toSym(s: String) = Symbol(s)
 
+  override val whiteSpace = """\s*(/(\*([^*]|\*[^/])*\*/|/[^\n]*\n)\s*)*"""r
+  override val skipWhitespace = true
+
+  private val reserved = Set("while", "for", "to", "break", "let", "in", "end", "function",
+    "var", "type", "array", "if", "then", "else", "do", "of", "nil"
+  )
+
   /** Keywords */
 
   val WHILE = "while" ^^ toSym
@@ -41,6 +48,7 @@ class Lexer extends RegexParsers with ImplicitConversions {
   val AND = "&" ^^ toSym
   val OR = "|" ^^ toSym
   val ASSIGN = ":=" ^^ toSym
+  val DOT = "." ^^ toSym
 
   /** Punctuation Symbols */
 
@@ -58,9 +66,9 @@ class Lexer extends RegexParsers with ImplicitConversions {
 
   /** String Literals */
 
-  val STR_LIT = ("""["]([^"\\\n\r]|\\(.|\n|\r))*\\?["]"""r) ^^ identity
+  val STR_LIT = ("""["]([^"\\\n\r]|\\(.|\n|\r))*\\?["]"""r) ^^ { e => e}
 
   /** Identifiers */
 
-  var ID = ("""[a-z][\w_\d]*"""r) ^^ toSym
+  val ID : Parser[Symbol] = ("""[a-zA-Z][\w_\d]*"""r) ^^ toSym
 }

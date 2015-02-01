@@ -36,8 +36,16 @@ object Absyn {
 
   // Declarations
 
-  class Field(name: Symbol, var escape: Boolean, typ: Symbol)
-  class FunDec(name: Symbol, params: Seq[Field], result: Option[Symbol], body: Exp)
+  class Field(name: Symbol, var escape: Boolean, typ: Symbol) {
+    override def toString(): String = {
+      "%s:%s".format(name, typ)
+    }
+  }
+  class FunDec(name: Symbol, params: Seq[Field], result: Option[Symbol], body: Exp) {
+    override def toString(): String = {
+      "%s(%s): %s = %s".format(name, params, result, body)
+    }
+  }
 
   case class FunctionDec(value: Seq[FunDec]) extends Dec
   case class VarDec(name: Symbol, var escape: Boolean, typ: Option[Symbol], init: Exp) extends Dec

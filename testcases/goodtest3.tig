@@ -1,0 +1,6 @@
+let
+  function bar():int = 3
+  function foo(n:int):int = bar()+n
+in
+  foo(2)+3
+end

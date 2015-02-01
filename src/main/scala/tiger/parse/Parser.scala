@@ -1,112 +1,190 @@
 package tiger.parse
 
 import absyn.Absyn
-import absyn.Absyn.{FunctionDec, FunDec}
+import absyn.Absyn.{Exp, FunctionDec, FunDec}
 
 import scala.util.parsing.combinator.{PackratParsers, ImplicitConversions}
+import scala.util.parsing.input.CharArrayReader
 
 class Parser extends Lexer with ImplicitConversions with PackratParsers {
 
+  def parse(input: String): Option[Absyn.Exp] = {
+    val result: ParseResult[Exp] = phrase(program)(new CharArrayReader((input.toCharArray)))
+    result match {
+      case Success(result, _) => Some(result)
+      case NoSuccess(err, next) => {
+        val message = "Error: failed to parse input (line %d, column %d), reason: \n\t%s".
+          format(next.pos.line, next.pos.column, err)
+        println(message)
+        None
+      }
+    }
+  }
+
   /** Program */
 
-  def program : Parser[Absyn.Exp] = exp
+  lazy val program : PackratParser[Absyn.Exp] = exp
 
   /** Declarations */
 
-  def typfield : Parser[Absyn.Field] = ID ~ COLON ~ ID ^^ { case name~COLON~typ => new Absyn.Field(name, false, typ) }
+  lazy val typfield : PackratParser[Absyn.Field] = (ID <~ COLON) ~ ID ^^ flatten2 {
+    (name, typ) => new Absyn.Field(name, false, typ)
+  }
 
-  def typ : Parser[Absyn.Ty] = (
-    ID ^^ { case ty => Absyn.NameTy(ty) }
-      | LBRACE ~ rep(typfield) ~ RBRACE ^^ { case LBRACE~fs~RBRACE => Absyn.RecordTy(fs) }
-      | ARRAY ~ OF ~ ID ^^ { case ARRAY~OF~typ => Absyn.ArrayTy(typ) }
-    )
+  lazy val typ : PackratParser[Absyn.Ty] = (
+    (ARRAY ~ OF) ~> ID ^^ Absyn.ArrayTy
+  | LBRACE ~> repsep(typfield, ",") <~ RBRACE ^^ Absyn.RecordTy
+  | ID ^^ Absyn.NameTy
+  )
 
-  def tydec : Parser[Absyn.Dec] = TYPE ~ ID ~ EQ ~ typ ^^ { case TYPE~name~EQ~typ => Absyn.TypeDec(name, typ) }
+  lazy val tydec : PackratParser[Absyn.Dec] = (TYPE ~> ID) ~ (EQ ~> typ) ^^ flatten2 {
+    (name, typ) => Absyn.TypeDec(name, typ)
+  }
 
-  def vardec : Parser[Absyn.Dec] = (
-    VAR ~ ID ~ ASSIGN ~ exp ^^ { case VAR~name~ASSIGN~init => Absyn.VarDec(name, false, None, init) }
-      | VAR ~ ID ~ COLON ~ ID ~ ASSIGN ~ exp ^^ { case VAR~name~COLON~typ~ASSIGN~init => Absyn.VarDec(name, false, Some(typ), init) }
-    )
+  lazy val vardec : PackratParser[Absyn.Dec] = (
+    VAR ~> ID ~ (ASSIGN ~> exp) ^^ flatten2 {
+      (name, init) => Absyn.VarDec(name, false, None, init)
+    }
+  | VAR ~> ID ~ (COLON ~> ID) ~ (ASSIGN ~> exp) ^^ flatten3 {
+      (name, typ, init) => Absyn.VarDec(name, false, Some(typ), init)
+    }
+  )
 
-  def fundec : Parser[Absyn.Dec] = (
-    FUNCTION ~ ID ~ LPAREN ~ rep(typfield) ~ RPAREN ~ EQ ~ exp ^^ { case FUNCTION~name~LPAREN~params~RPAREN~EQ~body => new FunctionDec(List(new FunDec(name, params, None, null))) }
-      | FUNCTION ~ ID ~ LPAREN ~ rep(typfield) ~ RPAREN ~ COLON ~ ID ~ EQ ~ exp ^^ { case FUNCTION~name~LPAREN~params~RPAREN~COLON~typ~EQ~body => new FunctionDec(List(new FunDec(name, params, Some(typ), null))) }
-    )
+  lazy val fundec : PackratParser[Absyn.Dec] = (
+    FUNCTION ~> ID ~ (LPAREN ~> repsep(typfield, ",") <~ RPAREN ~ EQ) ~ exp ^^ flatten3 {
+      (name, params, body) => new FunctionDec(List(new FunDec(name, params, None, body)))
+    }
+  | FUNCTION ~> ID ~ (LPAREN ~> repsep(typfield, ",") <~ RPAREN ~ COLON) ~ ID ~ (EQ ~> exp) ^^ flatten4 {
+      (name, params, typ, body) => new FunctionDec(List(new FunDec(name, params, Some(typ), body)))
+    }
+  )
 
-  def dec : Parser[Absyn.Dec] = (tydec | vardec | fundec)
+  lazy val dec : PackratParser[Absyn.Dec] = (tydec | vardec | fundec)
 
-  def decs : Parser[Seq[Absyn.Dec]] = rep(dec)
+  lazy val decs : PackratParser[Seq[Absyn.Dec]] = rep(dec)
 
   /** Expressions */
 
-  def literal = (STR_LIT ^^ Absyn.StringExp | INT_LIT ^^ Absyn.IntExp)
+  lazy val literal = (STR_LIT ^^ Absyn.StringExp | INT_LIT ^^ Absyn.IntExp)
 
-  def funcall = ID ~ LPAREN ~ repsep(exp, ",") ~ RPAREN ^^ { case fname~LPAREN~args~RPAREN => Absyn.CallExp(fname, args) }
+  lazy val funcall = ID ~ (LPAREN ~> repsep(exp, ",") <~ RPAREN) ^^ flatten2 {
+    (fname, args) => Absyn.CallExp(fname, args)
+  }
 
-  def binop = (
-    exp ~ PLUS ~ exp ^^ { case left~PLUS~right => Absyn.OpExp(left, Absyn.PlusOp, right) }
-      | exp ~ MINUS ~ exp ^^ { case left~MINUS~right => Absyn.OpExp(left, Absyn.MinusOp, right) }
-      | exp ~ TIMES ~ exp ^^ { case left~TIMES~right => Absyn.OpExp(left, Absyn.TimesOp, right) }
-      | exp ~ DIVIDE ~ exp ^^ { case left~DIVIDE~right => Absyn.OpExp(left, Absyn.DivideOp, right) }
-      | exp ~ EQ ~ exp ^^ { case left~EQ~right => Absyn.OpExp(left, Absyn.EqOp, right) }
-      | exp ~ NEQ ~ exp ^^ { case left~NEQ~right => Absyn.OpExp(left, Absyn.NeqOp, right) }
-      | exp ~ GT ~ exp ^^ { case left~GT~right => Absyn.OpExp(left, Absyn.GtOp, right) }
-      | exp ~ GE ~ exp ^^ { case left~GE~right => Absyn.OpExp(left, Absyn.GeOp, right) }
-      | exp ~ LT ~ exp ^^ { case left~LT~right => Absyn.OpExp(left, Absyn.LtOp, right) }
-      | exp ~ LE ~ exp ^^ { case left~LE~right => Absyn.OpExp(left, Absyn.LeOp, right) }
-      | exp ~ AND ~ exp ^^ { case left~AND~right => Absyn.IfExp(left, right, Some(Absyn.IntExp(0))) }
-      | exp ~ OR ~ exp ^^ { case left~OR~right => Absyn.IfExp(left, Absyn.IntExp(1), Some(right)) }
-    )
+  lazy val binop = (
+    exp ~ (PLUS ~> exp) ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.PlusOp, right)
+    }
+  | (exp <~ MINUS) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.MinusOp, right)
+    }
+  | (exp <~ TIMES) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.TimesOp, right)
+    }
+  | (exp <~ DIVIDE) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.DivideOp, right)
+    }
+  | (exp <~ EQ) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.EqOp, right)
+    }
+  | (exp <~ NEQ) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.NeqOp, right)
+    }
+  | (exp <~ GT) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.GtOp, right)
+    }
+  | (exp <~ GE) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.GeOp, right)
+    }
+  | (exp <~ LT) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.LtOp, right)
+    }
+  | (exp <~ LE) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.OpExp(left, Absyn.LeOp, right)
+    }
+  | (exp <~ AND) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.IfExp(left, right, Some(Absyn.IntExp(0)))
+    }
+  | (exp <~ OR) ~ exp ^^ flatten2 {
+      (left, right) => Absyn.IfExp(left, Absyn.IntExp(1), Some(right))
+    }
+  )
 
-  def field = ID ~ EQ ~ exp ^^ { case typ~EQ~exp => (typ, exp) }
+  lazy val field = (ID <~ EQ) ~ exp ^^ flatten2 {
+    (name, exp) => (name, exp)
+  }
 
-  def record = ID ~ LBRACE ~ repsep(field, ",") ~ RBRACE ^^ { case typ~LBRACE~fields~RBRACE => Absyn.RecordExp(fields, typ) }
+  lazy val record = ID ~ (LBRACE ~> repsep(field, ",") <~ RBRACE) ^^ flatten2 {
+    (typ, fields) => Absyn.RecordExp(fields, typ)
+  }
   
-  def array = ID ~ LBRACK ~ exp ~ RBRACK ~ OF ~ exp ^^ { case typ~LBRACK~size~RBRACK~OF~init => Absyn.ArrayExp(typ, size, init) }
+  lazy val array = ID ~ (LBRACK ~> exp <~ RBRACK ~ OF) ~ exp ^^ flatten3 {
+    (typ, size, init) => Absyn.ArrayExp(typ, size, init)
+  }
 
-  def ifthenelse = IF ~ exp ~ THEN ~ exp ~ ELSE ~ exp ^^ { case IF~cond~THEN~then~ELSE~els => Absyn.IfExp(cond, then, Some(els)) }
+  lazy val ifthenelse = IF ~> exp ~ (THEN ~> exp <~ ELSE) ~ exp ^^ flatten3 {
+    (cond, then, els) => Absyn.IfExp(cond, then, Some(els))
+  }
 
-  def ifthen = IF ~ exp ~ THEN ~ exp ^^ { case IF~cond~THEN~then => Absyn.IfExp(cond, then, None) }
+  lazy val ifthen = (IF ~> exp) ~ (THEN ~> exp) ^^ flatten2 {
+    (cond, then) => Absyn.IfExp(cond, then, None)
+  }
 
-  def loop = WHILE ~ exp ~ DO ~ exp ^^ { case WHILE~cond~DO~body => Absyn.WhileExp(cond, body) }
+  lazy val loop = (WHILE ~> exp) ~ (DO ~> exp) ^^ flatten2 {
+    (cond, body) => Absyn.WhileExp(cond, body)
+  }
 
-  def forloop = FOR ~ ID ~ ASSIGN ~ exp ~ TO ~ exp ~ DO ~ exp ^^ { case FOR~id~ASSIGN~lo~TO~hi~DO~body => Absyn.ForExp(id, false, lo, hi, body) }
+  lazy val forloop = (FOR ~> ID <~ ASSIGN) ~ exp ~ (TO ~> exp <~ DO) ~ exp ^^ flatten4 {
+    (id, lo, hi, body) => Absyn.ForExp(id, false, lo, hi, body)
+  }
 
-  def let : Parser[Absyn.Exp] = LET ~ decs ~ IN ~ repsep(exp, ";") ~ END ^^ { case LET~decs~IN~exps~END => Absyn.LetExp(decs, Absyn.SeqExp(exps)) }
+  lazy val let = (LET ~> decs) ~ (IN ~> repsep(exp, ";") <~ END) ^^ flatten2 {
+    (decs, exps) => Absyn.LetExp(decs, Absyn.SeqExp(exps))
+  }
 
-  def negexp = MINUS ~> exp ^^ { case e => Absyn.OpExp(Absyn.IntExp(0), Absyn.MinusOp, e) }
+  lazy val negexp = MINUS ~> exp ^^ {
+    e => Absyn.OpExp(Absyn.IntExp(0), Absyn.MinusOp, e)
+  }
 
-  def assignment = lvalue ~ ASSIGN ~ exp ^^ { case lv~ASSIGN~exp => Absyn.AssignExp(lv, exp) }
+  lazy val assignment = lvalue ~ (ASSIGN ~> exp) ^^ flatten2 {
+    (lv, exp) => Absyn.AssignExp(lv, exp)
+  }
 
-  def sequence : Parser[Absyn.SeqExp] = LPAREN ~> repsep(exp, ";") <~ RPAREN ^^ { es => Absyn.SeqExp(es) }
+  lazy val sequence = LPAREN ~> repsep(exp, ";") <~ RPAREN ^^ {
+    es => Absyn.SeqExp(es)
+  }
 
-  def nil = NIL ^^^ Absyn.NilExp
+  lazy val nil = NIL ^^^ Absyn.NilExp
 
-  def break = BREAK ^^^ Absyn.BreakExp
+  lazy val break = BREAK ^^^ Absyn.BreakExp
 
   /** lvalue - left recursion */
-  lazy val lvalue : Parser[Absyn.Var] = (
-    ID ^^ { case v => Absyn.SimpleVar(v) }
-      | lvalue ~ ID ^^ { case lv~sym => Absyn.FieldVar(lv, sym) }
-      | lvalue ~ LBRACK ~ exp ~ RBRACK ^^ { case lv~LBRACK~exp~RBRACK => Absyn.SubscriptVar(lv, exp) }
-    )
+  lazy val lvalue : PackratParser[Absyn.Var] = (
+    lvalue ~ (LBRACK ~> exp <~ RBRACK) ^^ flatten2 {
+      (lv, exp) => Absyn.SubscriptVar(lv, exp)
+    }
+  | lvalue ~ (DOT ~> ID) ^^ flatten2 {
+      (lv, sym) => Absyn.FieldVar(lv, sym)
+    }
+  | ID ^^ Absyn.SimpleVar
+  )
 
-  lazy val exp : Parser[Absyn.Exp] = (
-    literal
-      | negexp
-      | record
-      | sequence
-      | funcall
-      | assignment
-      | binop
-      | array
-      | ifthenelse
-      | ifthen
-      | loop
-      | forloop
-      | let
-      | break
-      | lvalue ^^ { case lv => Absyn.VarExp(lv) }
-    )
+  lazy val exp : PackratParser[Absyn.Exp] = (
+    sequence // LPAREN
+  | let // LET
+  | binop
+  | ifthenelse // IF
+  | ifthen // IF
+  | loop // WHILE
+  | forloop // FOR
+  | break
+  | record // ID LBRACE
+  | array // ID LBRACK
+  | assignment // lvalue ..
+  | negexp // MINUS
+  | funcall // ID LPAREN
+  | lvalue ^^ Absyn.VarExp
+  | literal // ID
+  )
 
 }

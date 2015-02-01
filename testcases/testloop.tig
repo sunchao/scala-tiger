@@ -1,0 +1,5 @@
+let
+  var n := 8
+in
+  for i:= 0 to n do print("good")
+end

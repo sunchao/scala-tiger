@@ -1,0 +1,26 @@
+let
+ type list = {first: int, rest: list}
+
+ function merge(a: list, b: list) : list =
+   if a=nil then b
+   else if b=nil then a
+   else if a.first < b.first
+      then list{first=a.first,rest=merge(a.rest,b)}
+      else list{first=b.first,rest=merge(a,b.rest)}
+
+ function printint(i: int) =
+  let function f(i:int) = if i>0
+	     then (f(i/10); print(chr(i-i/10*10+ord("0"))))
+   in if i<0 then (print("-"); f(-i))
+      else if i>0 then f(i)
+      else print("0")
+  end
+
+ function printlist(l: list) =
+   if l=nil then print("\n")
+   else (printint(l.first); print(" "); printlist(l.rest))
+
+ in
+  printlist(merge(list{first=1,rest=list{first=3,rest=list{first=5,rest=nil}}},
+                  list{first=2,rest=list{first=4,rest=list{first=6,rest=nil}}}))
+end

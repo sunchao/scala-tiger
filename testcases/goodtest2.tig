@@ -1,0 +1,5 @@
+let
+  function foo(n:int):int = 3
+in
+  print("good")
+end

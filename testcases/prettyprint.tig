@@ -1,0 +1,32 @@
+(* A program to test static links *)
+
+let
+  type tree = {key: string, left: tree, right: tree}
+
+  function prettyprint(tree: tree): string =
+    let
+      var output := ""
+
+      function write(s: string) =
+        output := concat(output,s)
+
+      function show(n:int, t:tree) =
+        let function indent(s:string) =
+          (for i := 1 to n
+            do write("X");
+            output := concat(output,s))
+        in if t=nil then indent(".")
+           else (indent(t.key);
+                 write("\n");
+                 show(n+1,t.left);
+                 write("\n");
+                 show(n+1,t.right))
+        end
+    in show(0,tree); output
+  end
+
+  var sample := tree{key="foo",left=tree{key="zoo",left=nil,right=nil},
+                    right=tree{key="bar",left=nil,right=nil}}
+in
+  print(prettyprint(sample))
+end

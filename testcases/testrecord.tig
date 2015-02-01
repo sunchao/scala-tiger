@@ -1,0 +1,10 @@
+let
+  type list = {first:string, rest:list}
+
+  function printlist(l: list) =
+   if l=nil then print("\n")
+   else (print(l.first); print(" "); printlist(l.rest))
+  var list1 := list{first="a",rest=list{first="b",rest=nil}}
+in
+  printlist(list1)
+end

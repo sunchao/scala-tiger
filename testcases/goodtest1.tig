@@ -1,0 +1,9 @@
+let
+  function fact(n: int) : int =
+    let var x := n in
+      if x > 0 then n*fact(n-1) else 1
+    end
+  var s := "hello"
+in
+  print(chr(fact(5)))
+end
