@@ -29,23 +29,16 @@ object Absyn {
   case class IfExp(cond: Exp, then: Exp, els: Option[Exp]) extends Exp
   case class WhileExp(cond: Exp, body: Exp) extends Exp
   case class ForExp(variable: Symbol, var escape: Boolean, lo: Exp, hi: Exp, body: Exp) extends Exp
-  case class LetExp(desc: Seq[Dec], body: Exp) extends Exp
+  case class LetExp(decs: Seq[Dec], body: Exp) extends Exp
   case class ArrayExp(typ: Symbol, size: Exp, init: Exp) extends Exp
   case object BreakExp extends Exp
   case object NilExp extends Exp
 
   // Declarations
 
-  class Field(name: Symbol, var escape: Boolean, typ: Symbol) {
-    override def toString(): String = {
-      "%s:%s".format(name, typ)
-    }
-  }
-  class FunDec(name: Symbol, params: Seq[Field], result: Option[Symbol], body: Exp) {
-    override def toString(): String = {
-      "%s(%s): %s = %s".format(name, params, result, body)
-    }
-  }
+  case class Field(name: Symbol, var escape: Boolean, typ: Symbol)
+
+  case class FunDec(name: Symbol, params: Seq[Field], result: Option[Symbol], body: Exp)
 
   case class FunctionDec(value: Seq[FunDec]) extends Dec
   case class VarDec(name: Symbol, var escape: Boolean, typ: Option[Symbol], init: Exp) extends Dec
