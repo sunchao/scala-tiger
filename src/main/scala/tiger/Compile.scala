@@ -1,6 +1,7 @@
 package tiger
 
 import _root_.absyn.Absyn
+import tiger.absyn.SimplePrintAbsyn
 import tiger.parse.Parser
 
 import scala.io.Source
@@ -17,7 +18,7 @@ object Compile {
     val result = parser.parse(input)
     result match {
       case Some(ast) => {
-        println(ast)
+        new SimplePrintAbsyn(System.out).print(ast)
         Some(ast)
       }
       case None => {

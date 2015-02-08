@@ -123,11 +123,11 @@ class Parser extends Lexer with ImplicitConversions with PackratParsers {
   }
 
   lazy val ifthenelse = IF ~> exp ~ (THEN ~> exp <~ ELSE) ~ exp ^^ flatten3 {
-    (cond, then, els) => Absyn.IfExp(cond, then, Some(els))
+    (cond, _then, _else) => Absyn.IfExp(cond, _then, Some(_else))
   }
 
   lazy val ifthen = (IF ~> exp) ~ (THEN ~> exp) ^^ flatten2 {
-    (cond, then) => Absyn.IfExp(cond, then, None)
+    (cond, _then) => Absyn.IfExp(cond, _then, None)
   }
 
   lazy val loop = (WHILE ~> exp) ~ (DO ~> exp) ^^ flatten2 {

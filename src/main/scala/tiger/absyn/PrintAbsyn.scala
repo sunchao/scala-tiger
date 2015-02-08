@@ -1,6 +1,6 @@
 package tiger.absyn
 
-import java.io.{PrintWriter, Writer}
+import java.io.{OutputStream, PrintWriter}
 
 import absyn.Absyn._
 
@@ -14,16 +14,22 @@ trait PrintAbsyn {
 /**
  * A simple implementation of [[PrintAbsyn]] that pretty-print AST
  * by indent level.
- * @param writer writer used to output the AST
+ * @param output output for the AST
  */
-class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
-  private val out: PrintWriter = new PrintWriter(writer)
+class SimplePrintAbsyn(val output: OutputStream) extends PrintAbsyn {
+  private val out: PrintWriter = new PrintWriter(output)
 
-  def print(e: Exp): Unit = printExp(e, 0)
+  def print(e: Exp): Unit = {
+    out.println("====================== AST ======================")
+    printExp(e, 0);
+    out.println()
+    out.println("================= END OF AST ====================")
+    out.flush()
+  }
 
-  def indent(i: Int): Unit = {
-    out.print(" ")
-    indent(i - 1)
+  def indent(i: Int): Unit = i match {
+    case x if x > 0 =>  { out.print("  "); indent(i-1) }
+    case 0 => ()
   }
 
   def doList[A](es: Seq[A], d: Int, f: (A, Int) => Unit): Unit = {
@@ -46,17 +52,18 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
       out.print("SimpleVar(")
       out.print(sym.name)
       out.print(")")
-    case FieldVar(variable, sym) =>
+    case FieldVar(_var, sym) =>
       indent(d)
       out.println("FieldVar(")
-      printVar(variable, d+1)
+      printVar(_var, d+1)
       out.println(",")
+      indent(d+1)
       out.print(sym.name)
       out.print(")")
-    case SubscriptVar(variable, exp) =>
+    case SubscriptVar(_var, exp) =>
       indent(d)
       out.println("SubscriptVar(")
-      printVar(variable, d+1)
+      printVar(_var, d+1)
       out.println(",")
       printExp(exp, d+1)
       out.print(")")
@@ -70,7 +77,7 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
     out.print(field.escape)
     out.print(",")
     out.print(field.typ)
-    out.print(",")
+    out.print(")")
   }
 
   private def printFunDec(fundec: FunDec, d: Int): Unit = {
@@ -80,6 +87,7 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
     out.print(",[")
     doList(fundec.params, d, printField)
     out.println("],")
+    indent(d+1)
     fundec.result match {
       case None => out.print("NONE")
       case Some(sym) =>
@@ -119,17 +127,17 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
       indent(d)
       out.print("TypeDec(")
       out.print(name.name)
-      out.print(",")
+      out.println(",")
       printTy(ty, d+1)
       out.print(")")
   }
 
   def printTy(ty: Ty, d: Int): Unit = {
     ty match {
-      case NameTy(name) =>
+      case NameTy(sym) =>
         indent(d)
         out.print("NameTy(")
-        out.print(name.name)
+        out.print(sym.name)
         out.print(")")
       case RecordTy(fields) =>
         indent(d)
@@ -145,17 +153,10 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
   }
 
   def printExp(e: Exp, d: Int): Unit = e match {
-    case AssignExp(variable, exp) =>
-      indent(d)
-      out.print("Assign(")
-      printVar(variable, d+1)
-      out.println(",")
-      printExp(exp, d+1)
-      out.print(")")
-    case VarExp(value) =>
+    case VarExp(_var) =>
       indent(d)
       out.println("VarExp(")
-      printVar(value, d+1)
+      printVar(_var, d+1)
       out.print(")")
     case IntExp(value) =>
       indent(d)
@@ -173,7 +174,7 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
       out.print(fname.name)
       out.print(",[")
       doList(args, d, printExp)
-      out.print("]")
+      out.print("])")
     case OpExp(left, op, right) =>
       indent(d)
       out.print("OpExp(")
@@ -187,17 +188,15 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
       indent(d)
       out.print("RecordExp(")
       out.print(typ.name)
-      out.println(",[")
-      doList(fields, d, (e,d) => {
-        e match {
-          case (sym: Symbol, exp: Exp) =>
-            indent(d)
-            out.print("(")
-            out.print(sym.name)
-            out.println(",")
-            printExp(exp, d + 1)
-            out.print(")")
-        }
+      out.print(",[")
+      doList(fields, d, (e: (Symbol, Exp), d: Int) => e match {
+        case (sym: Symbol, exp: Exp) =>
+          indent(d)
+          out.print("(")
+          out.print(sym.name)
+          out.println(",")
+          printExp(exp, d + 1)
+          out.print(")")
       })
       out.print("]")
     case SeqExp(value) =>
@@ -205,20 +204,20 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
       out.print("SeqExp[")
       doList(value, d, printExp)
       out.print("]")
-    case AssignExp(variable, exp) =>
+    case AssignExp(_var, exp) =>
       indent(d)
-      out.print("AssignExp(")
-      printVar(variable, d+1)
+      out.println("AssignExp(")
+      printVar(_var, d+1)
       out.println(",")
       printExp(exp, d+1)
       out.print(")")
-    case IfExp(cond, then, els) =>
+    case IfExp(cond, _then, _else) =>
       indent(d)
-      out.print("IfExp(")
+      out.println("IfExp(")
       printExp(cond, d+1)
       out.println(",")
-      printExp(then, d+1)
-      els match {
+      printExp(_then, d+1)
+      _else match {
         case None => ()
         case Some(e) =>
           out.println(",")
@@ -226,15 +225,16 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
       }
     case WhileExp(cond, body) =>
       indent(d)
-      out.print("WhileExp(")
+      out.println("WhileExp(")
       printExp(cond, d+1)
       out.println(",")
       printExp(body, d+1)
       out.print(")")
-    case ForExp(variable, escape, lo, hi, body) =>
+    case ForExp(_var, escape, lo, hi, body) =>
       indent(d)
-      out.print("ForExp(")
-      out.print(variable.name)
+      out.println("ForExp(")
+      indent(d+1)
+      out.print(_var.name)
       out.print(",")
       out.print(escape)
       out.println(",")
@@ -268,3 +268,4 @@ class SimplePrintAbsyn(val writer: Writer) extends PrintAbsyn {
       out.print("NilExp")
   }
 }
+

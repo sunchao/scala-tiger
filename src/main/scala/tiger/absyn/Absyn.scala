@@ -13,22 +13,22 @@ object Absyn {
   // Variables
 
   case class SimpleVar(sym: Symbol) extends Var
-  case class FieldVar(variable: Var, sym: Symbol) extends Var
-  case class SubscriptVar(variable: Var, exp: Exp) extends Var
+  case class FieldVar(_var: Var, sym: Symbol) extends Var
+  case class SubscriptVar(_var: Var, exp: Exp) extends Var
 
   // Expressions
 
-  case class VarExp(value: Var) extends Exp
+  case class VarExp(_var: Var) extends Exp
   case class IntExp(value: Int) extends Exp
   case class StringExp(value: String) extends Exp
   case class CallExp(fname: Symbol, args: Seq[Exp]) extends Exp
   case class OpExp(left: Exp, op: Oper, right: Exp) extends Exp
   case class RecordExp(fields: Seq[(Symbol, Exp)], typ: Symbol) extends Exp
   case class SeqExp(value: Seq[Exp]) extends Exp
-  case class AssignExp(variable: Var, exp: Exp) extends Exp
-  case class IfExp(cond: Exp, then: Exp, els: Option[Exp]) extends Exp
+  case class AssignExp(_var: Var, exp: Exp) extends Exp
+  case class IfExp(cond: Exp, _then: Exp, _else: Option[Exp]) extends Exp
   case class WhileExp(cond: Exp, body: Exp) extends Exp
-  case class ForExp(variable: Symbol, var escape: Boolean, lo: Exp, hi: Exp, body: Exp) extends Exp
+  case class ForExp(_var: Symbol, var escape: Boolean, lo: Exp, hi: Exp, body: Exp) extends Exp
   case class LetExp(decs: Seq[Dec], body: Exp) extends Exp
   case class ArrayExp(typ: Symbol, size: Exp, init: Exp) extends Exp
   case object BreakExp extends Exp
